@@ -4,9 +4,8 @@
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 import pickle
 
-from ib_insync import *
 from os import listdir, remove
-from time import sleep
+
 import pandas as pd
 from bs4 import BeautifulSoup
 import requests
@@ -14,6 +13,8 @@ import statsmodels.api as sm
 from sklearn import linear_model
 from datetime import datetime
 from helper import checkperformance
+
+
 
 def fetch_usdt_rates(YYYY):
     # Requests the USDT's daily yield data for a given year. Results are
@@ -121,8 +122,7 @@ X_train=sm.add_constant(X_train)
 
 model=sm.OLS(Y_train,X_train)
 result=model.fit()
-pickle.dump(result,open("trainedModel",'wb'))
-loadedResult = pickle.load(open("trainedModel","rb"))
+
 print(result.summary())
 
 
@@ -156,50 +156,24 @@ print(checkperformance(list(Y_predict2),list(Y_test)))
 
 
 ###
-removecolumns2=['5 yr','7 yr','30 yr']
+removecolumns2=['1 mo','5 yr','7 yr','30 yr']
 X_train.drop(removecolumns2,axis=1,inplace=True)
 X_test.drop(removecolumns2,axis=1,inplace=True)
 model3=sm.OLS(Y_train,X_train)
 result3=model3.fit()
+pickle.dump(result3,open("trainedModel",'wb'))
+loadedResult = pickle.load(open("trainedModel","rb"))
+
 print(result3.summary())
 Y_predict3=result3.predict(X_test)
 
 
 print(checkperformance(list(Y_predict3),list(Y_test)))
 
-"""
-sampling_rate = 1 # How often, in seconds, to check for inputs from Dash?
-# For TWS Paper account, default port is 7497
-# For IBG Paper account, default port is 4002
-port = 7497
-# choose your master id. Mine is 10645. You can use whatever you want, just set it in API Settings within TWS or IBG.
-master_client_id = 55555
-# choose your dedicated id just for orders. I picked 1111.
-orders_client_id = 1515
-# account number: you'll need to fill in yourself. The below is one of my paper trader account numbers.
-acc_number = 'DU3530728'
-########################################################################################################################
-
-# Run your helper function to clear out any io files left over from old runs
 
 
-# Create an IB app; i.e., an instance of the IB() class from the ib_insync package
-ib=IB()
-# Connect your app to a running instance of IBG or TWS
-ib.connect(host='127.0.0.1', port=port, clientId=master_client_id)
-# Make sure you're connected -- stay in this while loop until ib.isConnected() is True.
-while not ib.isConnected():
-    sleep(.01)
 
 
-# If connected, script proceeds and prints a success message.
-print('Connection Successful!')
-
-
-stockdata=pd.read_csv('IVV.csv')
-stockdata=pd.DataFrame(stockdata)
-
-"""
 
 
 #volume, 10 year treasure yield, 1 year treasury yield, federal interest rate
