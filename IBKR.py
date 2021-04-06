@@ -1,3 +1,5 @@
+import os
+from datetime import datetime
 from ib_insync import *
 from time import sleep
 import pandas as pd
@@ -21,6 +23,10 @@ acc_number = 'DU3530728'
 
 
 # Create an IB app; i.e., an instance of the IB() class from the ib_insync package
+if not os.path.isfile("position.txt"):
+    f = open("position.txt", "a")
+    f.write("0")
+    f.close()
 ib=IB()
 # Connect your app to a running instance of IBG or TWS
 ib.connect(host='127.0.0.1', port=port, clientId=master_client_id)
@@ -31,6 +37,7 @@ while not ib.isConnected():
 
 # If connected, script proceeds and prints a success message.
 print('Connection Successful!')
+
 contract=Stock("IVV",'SMART','USD')
 bars = ib.reqHistoricalData(
         contract, # <<- pass in your contract object here
@@ -47,17 +54,49 @@ d = {'const':[1.0],'Open':bars['open'][0],'High':bars['high'][0],'Low':bars['low
 Predict_X = pd.DataFrame(d)
 model = pickle.load(open("trainedModel","rb"))
 y = model.predict(Predict_X)
-print(y[0])
-type(y)
+
 contract = Stock("IVV","SMART","USD")
 
 num = bars['close'][0]
-if y[0] > num:
-    order = MarketOrder("BUY", "100")
+position = ib.positions()[1].position
+tradeLog = pd.DataFrame(pickle.load(open("tradeLog","rb")))
+lastAvgPrice = float(tradeLog["avgPrice"][len(tradeLog)-1])
+newAvgPrice = float(ib.positions()[1].avgCost)
+lastActn = ""
+lastPosition = float(tradeLog["size"][len(tradeLog)-1])
+if position > lastPosition:
+    lastActn = "BUY"
 else:
-    order = MarketOrder("SELL","100")
-order.accoun = acc_number
+    lastActn = "SELL"
+
+shares = 0
+actn = ""
+if y[0] > num:
+    actn = "BUY"
+    if lastActn == "BUY":
+        shares = 100
+    else:
+        shares = position
+    order = MarketOrder("BUY", shares)
+else:
+    actn = "SELL"
+    if lastActn == "SELL":
+        shares = 100
+    else:
+        shares = position
+    order = MarketOrder("SELL",shares)
+order.account = acc_number
 ib_orders = IB()
 ib_orders.connect(host = '127.0.0.1',port= port, clientId = orders_client_id)
 ib_orders.placeOrder(contract, order)
-print(ib_orders.fills())
+
+#data = [[1,'30MAR21','IVV','SELL',100,395.97,'MKT',395.97, 100]]
+#tradeHistory = pd.DataFrame(data, columns = ['id','dt','symb','actn','size','price','type','avgPrice',"position"])
+index = len(tradeLog) - 1
+price = (newAvgPrice * position - lastAvgPrice * lastPosition)/(position - lastPosition)
+data = [[tradeLog["id"][index]+1,datetime.today(),"IVV",actn,"100",price, "MKT",newAvgPrice,int(position)]]
+tradeLog = tradeLog.append(pd.DataFrame(data,columns = ['id','dt','symb','actn','size','price','type','avgPrice',"position"]))
+pickle.dump(tradeLog,open("tradeLog","wb"))
+f = open("tradeLog.txt",'a')
+f.write(str(tradeLog))
+f.close()
