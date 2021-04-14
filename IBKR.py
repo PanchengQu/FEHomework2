@@ -5,7 +5,7 @@ from time import sleep
 import pandas as pd
 from helper import *
 import pickle
-import requests
+#import requests
 import statsmodels.api as sm
 sampling_rate = 1 # How often, in seconds, to check for inputs from Dash?
 # For TWS Paper account, default port is 7497
@@ -28,6 +28,7 @@ if not os.path.isfile("position.txt"):
     f.write("0")
     f.close()
 ib=IB()
+
 # Connect your app to a running instance of IBG or TWS
 ib.connect(host='127.0.0.1', port=port, clientId=master_client_id)
 # Make sure you're connected -- stay in this while loop until ib.isConnected() is True.

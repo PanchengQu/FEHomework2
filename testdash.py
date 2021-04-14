@@ -219,7 +219,18 @@ app.layout = html.Div([
     ############################################################################
     ############################################################################
 ])
+@app.callback(
+    [dash.dependencies.Output('blotter', 'data'),
+    dash.dependencies.Output('blotter', 'columns'),
+    dash.dependencies.Output('trade-ledger', 'data'),
+    dash.dependencies.Output('trade-ledger', 'columns')],
+    dash.dependencies.Input("run-backtest",'n_clicks'),
+    dash.dependencies.State(),
+    prevent_initial_call = True
+)
+def update_backtest(n_clicks, startDate):
 
+    return
 # @app.callback(
 #     [dash.dependencies.Output('bonds-hist', 'children'),
 #      dash.dependencies.Output('bonds-3d-graph', 'figure'),
