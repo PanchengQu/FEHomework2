@@ -58,12 +58,18 @@ y = model.predict(Predict_X)
 contract = Stock("IVV","SMART","USD")
 
 num = bars['close'][0]
-position = ib.positions()[1].position
+try:
+    position = ib.positions()[1].position
+except IndexError:
+    position = 0
 tradeLog = pd.DataFrame(pickle.load(open("tradeLog","rb")))
-lastAvgPrice = float(tradeLog["avgPrice"][len(tradeLog)-1])
-newAvgPrice = float(ib.positions()[1].avgCost)
+lastAvgPrice = float(tradeLog.iloc[len(tradeLog)-1][7])
+if position != 0:
+    newAvgPrice = float(ib.positions()[1].avgCost)
+else:
+    newAvgPrice = 0
 lastActn = ""
-lastPosition = float(tradeLog["size"][len(tradeLog)-1])
+lastPosition = float(tradeLog.iloc[len(tradeLog)-1][8])
 if position > lastPosition:
     lastActn = "BUY"
 else:
@@ -75,15 +81,22 @@ if y[0] > num:
     actn = "BUY"
     if lastActn == "BUY":
         shares = 100
+
     else:
-        shares = position
+        if position == 0:
+            shares = 100
+        else:
+            shares = abs(position)
     order = MarketOrder("BUY", shares)
 else:
     actn = "SELL"
     if lastActn == "SELL":
         shares = 100
     else:
-        shares = position
+        if position == 0:
+            shares = 100
+        else:
+            shares = abs(position)
     order = MarketOrder("SELL",shares)
 order.account = acc_number
 ib_orders = IB()
@@ -94,9 +107,16 @@ ib_orders.placeOrder(contract, order)
 #tradeHistory = pd.DataFrame(data, columns = ['id','dt','symb','actn','size','price','type','avgPrice',"position"])
 index = len(tradeLog) - 1
 price = (newAvgPrice * position - lastAvgPrice * lastPosition)/(position - lastPosition)
-data = [[tradeLog["id"][index]+1,datetime.today(),"IVV",actn,"100",price, "MKT",newAvgPrice,int(position)]]
-tradeLog = tradeLog.append(pd.DataFrame(data,columns = ['id','dt','symb','actn','size','price','type','avgPrice',"position"]))
+portvalue=float([v for v in ib.accountValues() if v.tag == 'NetLiquidationByCurrency' and v.currency == 'BASE'][0].value)
+dailyreturn=(tradeLog.iloc[index][9]-tradeLog.iloc[index-1][9])/tradeLog.iloc[index-1][9]
+
+data = [[tradeLog.iloc[len(tradeLog)-1][0]+1,datetime.today(),"IVV",actn,"100",price, "MKT",newAvgPrice,int(position),portvalue,1+dailyreturn]]
+tradeLog = tradeLog.append(pd.DataFrame(data,columns = ['id','dt','symb','actn','size','price','type','avgPrice',"position","portfolio value","return"]))
 pickle.dump(tradeLog,open("tradeLog","wb"))
 f = open("tradeLog.txt",'a')
 f.write(str(tradeLog))
 f.close()
+
+
+
+#[v for v in ib.accountValues() if v.tag == 'NetLiquidationByCurrency' and v.currency == 'BASE']

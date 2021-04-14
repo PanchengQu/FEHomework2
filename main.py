@@ -85,7 +85,7 @@ mergedata['DI']=dollarindexclose
 
 mergedata.drop(['Adj Close'],axis=1,inplace=True)
 
-#move up one day
+#move up one daywe
 mergedata['TargetClose']=mergedata['Close']
 mergedata['TargetClose']=mergedata['TargetClose'].shift(periods=-1)
 print(len(mergedata))
