@@ -5,10 +5,10 @@ import plotly.express as px
 import dash_core_components as dcc
 import dash_html_components as html
 from dash_table import DataTable, FormatTemplate
-
+import Backtest
 import numpy as np
 from sklearn import linear_model
-
+Backtest.cleaning()
 # Create a Dash app
 app = dash.Dash(__name__)
 
@@ -229,8 +229,31 @@ app.layout = html.Div([
     prevent_initial_call = True
 )
 def update_backtest(n_clicks, startDate):
+    ledger, blotter = Backtest.backtest_calculation(startDate)
+    blotter = blotter.to_dict('records')
+    blotter_columns = [
+        dict(id='ID', name='ID'),
+        dict(id='date', name='Date'),
+        dict(id='type', name='Order Type'),
+        dict(id='action', name='Action'),
+        dict(
+            id='price', name='Order Price', type='numeric',
+            format=FormatTemplate.money(2)
+        ),
+        dict(id='symbol', name='Symb'),
+        dict(id='size', name='Type'),
+    ]
+    ledger = ledger.to_dict('records')
+    ledger_columns= [
+        dict(id='dt', name='date'),
+        dict(id='position', name='Position'),
+        dict(id='cash', name='Cash'),
+        dict(id='stock value', name='Stock Value'),
+        dict(id='total value', name='Total Value'),
+        dict(id='return', name='Return(%)'),
+    ]
 
-    return
+    return blotter, blotter_columns, ledger, ledger_columns
 # @app.callback(
 #     [dash.dependencies.Output('bonds-hist', 'children'),
 #      dash.dependencies.Output('bonds-3d-graph', 'figure'),
