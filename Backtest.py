@@ -16,16 +16,25 @@ def cleaning():
     data=data.merge(VIXback,how='left',on='Date')
     data.columns=['Date', 'Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume', 'DX','VIX']
     data.dropna(axis=0,inplace=True)
-    data.drop(['Adj Close','Close_y','Date'],axis=1,inplace=True)
-    data.columns=['Date', 'Open', 'High', 'Low', 'Close', 'Volume', 'DX','VIX']
+    dataDate = data['Date']
+    data.drop(['Adj Close','Date'],axis=1,inplace=True)
+    data.columns=['Open', 'High', 'Low', 'Close', 'Volume', 'DX','VIX']
     pickle.dump(data,open("backtest_data","wb"))
+    pickle.dump(dataDate,open("backtest_dataDate","wb"))
     return
-def backtest_calculation(index):
-    returns = list()
+
+def findDate(startDate):
+    dataDate = pickle.load(open("backtest_dataDate", "rb"))
+    targetDate = datetime.datetime.strptime(startDate, '%Y-%m-%d')
+    for i in range(len(dataDate)):
+        if (datetime.datetime.strptime(dataDate.iloc[i], '%Y-%m-%d') - targetDate).days >= 0:
+            return max(i-252,0)
+    print("BUUUUUG")
+def backtest_calculation(startDate):
     data = pickle.load(open("backtest_data","rb"))
-    i = index
-    train = data[i:i + 242]
-    test = data[i + 242:i + 273]
+    i = findDate(startDate)
+    train = data[i:i + 252]
+    test = data[i + 252:i + 274]
     train_X = train.drop(['Close'], axis=1)
     train_Y = train['Close']
     train_Y.columns = ['Close']
@@ -40,8 +49,10 @@ def backtest_calculation(index):
     test_X = sm.add_constant(test_X)
     position = 0
     cash = 100000
-    blotter = pd.DataFrame()
-    ledger = pd.DataFrame()
+    blotter_columns = ['id', 'date', 'symb', 'actn', 'size', 'price', 'type']
+    ledger_columns = ['id', 'date', 'position', 'cash', 'stock value', 'total value', 'return(%)']
+    blotter = pd.DataFrame(columns = blotter_columns)
+    ledger = pd.DataFrame(columns= ledger_columns)
     #blotter:id, date, type, act, order price, symbol, shares
     #ledger: date, position, cash, stock value, total value, return
     for j in range(0, len(test_Y)):
@@ -62,11 +73,11 @@ def backtest_calculation(index):
                 shares = -position
         cash -= shares * test_Y.iloc[j]
         position += shares
-        blotterData = [j, datetime.today(), "IVV", actn, shares, test_Y.iloc[j], "MKT"]
-        blotter = blotter.append(pd.DataFrame(blotterData, columns=['id', 'date', 'symb', 'actn', 'size', 'price', 'type']))
+        blotterData = [[j, datetime.datetime.today().strftime('%Y/%m/%d'), "IVV", actn, shares, test_Y.iloc[j], "MKT"]]
+        blotter = blotter.append(pd.DataFrame(blotterData, columns=blotter_columns))
         total = cash + position * test_Y.iloc[j]
-        ledgerData = [j, datetime.today(), position, cash, position * test_Y.iloc[j], total, (total)/100000*100]
-        ledger = ledger.append(pd.DataFrame(ledgerData, columns=['id','date','position','cash','stock value','total value','return(%)']))
+        ledgerData = [[j, datetime.datetime.today().strftime('%Y/%m/%d'), position, cash, position * test_Y.iloc[j], total, (total)/100000*100]]
+        ledger = ledger.append(pd.DataFrame(ledgerData, columns=ledger_columns))
     return ledger, blotter
 
 

@@ -8,6 +8,8 @@ from dash_table import DataTable, FormatTemplate
 import Backtest
 import numpy as np
 from sklearn import linear_model
+from utils import *
+from datetime import date, timedelta
 Backtest.cleaning()
 # Create a Dash app
 app = dash.Dash(__name__)
@@ -100,25 +102,6 @@ app.layout = html.Div([
         html.H2('Parameters'),
         html.Ol([
             html.Li(
-                "n: number of days a limit order to exit a position is " + \
-                "kept open"
-            ),
-            html.Li(
-                "N: number of observed historical trading days to use in " + \
-                "training the logistic regression model."
-            ),
-            html.Li(
-                'alpha: a percentage in numeric form ' + \
-                '(e.g., "0.02" == "2%") that defines the profit sought by ' + \
-                'entering a trade; for example, if IVV is bought at ' + \
-                'price X, then a limit order to sell the shares will be put' + \
-                ' in place at a price = X*(1+alpha)'
-            ),
-            html.Li(
-                'lot_size: number of shares traded in each round-trip ' + \
-                'trade. Kept constant for simplicity.'
-            ),
-            html.Li(
                 'date_range: Date range over which to perform the backtest.'
             )
         ]),
@@ -130,20 +113,31 @@ app.layout = html.Div([
                             "RUN BACKTEST", id='run-backtest', n_clicks=0
                         ),
                         html.Table(
+                            # Header
                             [html.Tr([
-                                html.Th('Alpha'), html.Th('Beta'),
-                                html.Th('Geometric Mean Return'),
-                                html.Th('Average Trades per Year'),
-                                html.Th('Volatility'), html.Th('Sharpe')
-                            ])] + [html.Tr([
-                                html.Td(html.Div(id='strategy-alpha')),
-                                html.Td(html.Div(id='strategy-beta')),
-                                html.Td(html.Div(id='strategy-gmrr')),
-                                html.Td(html.Div(id='strategy-trades-per-yr')),
-                                html.Td(html.Div(id='strategy-vol')),
-                                html.Td(html.Div(id='strategy-sharpe'))
-                            ])],
-                            className='main-summary-table'
+                                html.Th('Date Range'),
+                                html.Th('Starting Cash')
+                            ])] +
+                            # Body
+                            [html.Tr([
+                                html.Td(
+                                    dcc.DatePickerSingle(
+                                        id='hist-data-range',
+                                        min_date_allowed=date(2019, 3, 18),
+                                        max_date_allowed=date(2021,3,6),
+                                        initial_visible_month=date.today(),
+                                        date=date(2019, 4, 1)
+                                    )
+                                ),
+                                html.Td(
+                                    dcc.Input(
+                                        id="starting-cash", type="number",
+                                        value=100000,
+                                        style={'text-align': 'center',
+                                               'width': '100px'}
+                                    )
+                                )
+                            ])]
                         )
                     ],
                     style={'display': 'inline-block', 'width': '50%'}
@@ -181,43 +175,26 @@ app.layout = html.Div([
         DataTable(
             id='trade-ledger',
             fixed_rows={'headers': True},
-            style_cell={'textAlign': 'center'},
+            #style_cell={'textAlign': 'center'},
             style_table={'height': '300px', 'overflowY': 'auto'}
         )
     ]),
     html.Div([
-        html.Div([
-            html.H2(
-                'Trade Blotter',
-                style={
-                    'display': 'inline-block', 'width': '55%',
-                    'text-align': 'center'
-                }
-            )
-        ]),
-        html.Div(
-            DataTable(
-                id='blotter',
-                fixed_rows={'headers': True},
-                style_cell={'textAlign': 'center'},
-                style_table={'height': '300px', 'overflowY': 'auto'}
-            ),
-            style={'display': 'inline-block', 'width': '55%'}
-        )
+        html.H2(
+            'Trade Blotter',
+            style={
+                'display': 'inline-block', 'width': '100%',
+                'text-align': 'center'
+            }
+        ),
+        DataTable(
+            id='blotter',
+            fixed_rows={'headers': True},
+            #style_cell={'textAlign': 'center'},
+            style_table={'height': '300px', 'overflowY': 'auto'}
+        ),
     ]),
-    # html.Div([
-    #     html.Div(
-    #         dcc.Graph(id='bonds-3d-graph', style={'display': 'none'}),
-    #         style={'display': 'inline-block', 'width': '50%'}
-    #     ),
-    #     html.Div(
-    #         dcc.Graph(id='candlestick', style={'display': 'none'}),
-    #         style={'display': 'inline-block', 'width': '50%'}
-    #     )
-    # ]),
-    # html.Div(id='proposed-trade'),
-    ############################################################################
-    ############################################################################
+
 ])
 @app.callback(
     [dash.dependencies.Output('blotter', 'data'),
@@ -225,236 +202,19 @@ app.layout = html.Div([
     dash.dependencies.Output('trade-ledger', 'data'),
     dash.dependencies.Output('trade-ledger', 'columns')],
     dash.dependencies.Input("run-backtest",'n_clicks'),
-    dash.dependencies.State(),
+    dash.dependencies.State("hist-data-range",'date'),
     prevent_initial_call = True
 )
 def update_backtest(n_clicks, startDate):
+    print(startDate)
     ledger, blotter = Backtest.backtest_calculation(startDate)
+    print(ledger, blotter)
+    print(blotter)
+    blotter_columns = [{'id': c, 'name': c} for c in blotter.columns]
     blotter = blotter.to_dict('records')
-    blotter_columns = [
-        dict(id='ID', name='ID'),
-        dict(id='date', name='Date'),
-        dict(id='type', name='Order Type'),
-        dict(id='action', name='Action'),
-        dict(
-            id='price', name='Order Price', type='numeric',
-            format=FormatTemplate.money(2)
-        ),
-        dict(id='symbol', name='Symb'),
-        dict(id='size', name='Type'),
-    ]
+    ledger_columns = [{'id': c, 'name': c} for c in ledger.columns]
     ledger = ledger.to_dict('records')
-    ledger_columns= [
-        dict(id='dt', name='date'),
-        dict(id='position', name='Position'),
-        dict(id='cash', name='Cash'),
-        dict(id='stock value', name='Stock Value'),
-        dict(id='total value', name='Total Value'),
-        dict(id='return', name='Return(%)'),
-    ]
-
     return blotter, blotter_columns, ledger, ledger_columns
-# @app.callback(
-#     [dash.dependencies.Output('bonds-hist', 'children'),
-#      dash.dependencies.Output('bonds-3d-graph', 'figure'),
-#      dash.dependencies.Output('bonds-3d-graph', 'style')],
-#     dash.dependencies.Input("run-backtest", 'n_clicks'),
-#     [dash.dependencies.State('hist-data-range', 'start_date'),
-#      dash.dependencies.State('hist-data-range', 'end_date'),
-#      dash.dependencies.State('big-N', 'value'),
-#      dash.dependencies.State('lil-n', 'value')
-#      ],
-#     prevent_initial_call=True
-# )
-# def update_bonds_hist(n_clicks, startDate, endDate, N, n):
-#
-#     bonds_data = usdt_cmt_rates(startDate, endDate, N, n)
-#
-#     fig = go.Figure(
-#         data=[
-#             go.Surface(
-#                 z=bonds_data,
-#                 y=bonds_data.Date,
-#                 x=[
-#                     to_years(cmt_colname) for cmt_colname in list(
-#                         filter(lambda x: ' ' in x, bonds_data.columns.values)
-#                     )
-#                 ]
-#             )
-#         ]
-#     )
-#
-#     fig.update_layout(
-#         scene=dict(
-#             xaxis_title='Maturity (years)',
-#             yaxis_title='Date',
-#             zaxis_title='APR (%)',
-#             zaxis=dict(ticksuffix='%')
-#         )
-#     )
-#
-#     bonds_data.reset_index(drop=True, inplace=True)
-#
-#     return bonds_data.to_json(), fig, {'display': 'block'}
-#
-#
-# @app.callback(
-#     [
-#         dash.dependencies.Output('features-and-responses', 'data'),
-#         dash.dependencies.Output('features-and-responses', 'columns'),
-#         dash.dependencies.Output('blotter', 'data'),
-#         dash.dependencies.Output('blotter', 'columns'),
-#         dash.dependencies.Output('calendar-ledger', 'data'),
-#         dash.dependencies.Output('calendar-ledger', 'columns'),
-#         dash.dependencies.Output('trade-ledger', 'data'),
-#         dash.dependencies.Output('trade-ledger', 'columns')
-#     ],
-#     [dash.dependencies.Input('ivv-hist', 'children'),
-#      dash.dependencies.Input('bonds-hist', 'children'),
-#      dash.dependencies.Input('lil-n', 'value'),
-#      dash.dependencies.Input('big-N', 'value'),
-#      dash.dependencies.Input('alpha', 'value'),
-#      dash.dependencies.Input('lot-size', 'value'),
-#      dash.dependencies.Input('starting-cash', 'value'),
-#      dash.dependencies.State('hist-data-range', 'start_date'),
-#      dash.dependencies.State('hist-data-range', 'end_date')],
-#     prevent_initial_call=True
-# )
-# def calculate_backtest(
-#         ivv_hist, bonds_hist, n, N, alpha, lot_size, starting_cash,
-#         start_date, end_date
-# ):
-#     features_and_responses, blotter, calendar_ledger, trade_ledger = backtest(
-#         ivv_hist, bonds_hist, n, N, alpha, lot_size, start_date, end_date,
-#         starting_cash
-#     )
-#
-#     features_and_responses_columns = [
-#         {"name": i, "id": i} for i in features_and_responses.columns
-#     ]
-#     features_and_responses = features_and_responses.to_dict('records')
-#
-#     blotter = blotter.to_dict('records')
-#     blotter_columns = [
-#         dict(id='ID', name='ID'),
-#         dict(id='ls', name='long/short'),
-#         dict(id='submitted', name='Created'),
-#         dict(id='action', name='Action'),
-#         dict(id='size', name='Size'),
-#         dict(id='symbol', name='Symb'),
-#         dict(
-#             id='price', name='Order Price', type='numeric',
-#             format=FormatTemplate.money(2)
-#         ),
-#         dict(id='type', name='Type'),
-#         dict(id='status', name='Status'),
-#         dict(id='fill_price', name='Fill Price', type='numeric',
-#              format=FormatTemplate.money(2)
-#              ),
-#         dict(id='filled_or_cancelled', name='Filled/Cancelled')
-#     ]
-#
-#     calendar_ledger = calendar_ledger.to_dict('records')
-#     calendar_ledger_columns = [
-#         dict(id='Date', name='Date'),
-#         dict(id='position', name='position'),
-#         dict(id='ivv_close', name='IVV Close', type='numeric',
-#              format=FormatTemplate.money(2)),
-#         dict(id='cash', name='Cash', type='numeric',
-#              format=FormatTemplate.money(2)),
-#         dict(id='stock_value', name='Stock Value', type='numeric',
-#              format=FormatTemplate.money(2)),
-#         dict(id='total_value', name='Total Value', type='numeric',
-#              format=FormatTemplate.money(2))
-#     ]
-#
-#     trade_ledger = trade_ledger.to_dict('records')
-#     trade_ledger_columns = [
-#         dict(id='trade_id', name="ID"),
-#         dict(id='open_dt', name='Trade Opened'),
-#         dict(id='close_dt', name='Trade Closed'),
-#         dict(id='trading_days_open', name='Trading Days Open'),
-#         dict(id='buy_price', name='Entry Price', type='numeric',
-#              format=FormatTemplate.money(2)),
-#         dict(id='sell_price', name='Exit Price', type='numeric',
-#              format=FormatTemplate.money(2)),
-#         dict(id='benchmark_buy_price', name='Benchmark Buy Price',
-#              type='numeric', format=FormatTemplate.money(2)),
-#         dict(id='benchmark_sell_price', name='Benchmark sell Price',
-#              type='numeric', format=FormatTemplate.money(2)),
-#         dict(id='trade_rtn', name='Return on Trade', type='numeric',
-#              format=FormatTemplate.percentage(3)),
-#         dict(id='benchmark_rtn', name='Benchmark Return', type='numeric',
-#              format=FormatTemplate.percentage(3)),
-#         dict(id='trade_rtn_per_trading_day', name='Trade Rtn / trd day',
-#              type='numeric', format=FormatTemplate.percentage(3)),
-#         dict(id='benchmark_rtn_per_trading_day', name='Benchmark Rtn / trd day',
-#              type='numeric', format=FormatTemplate.percentage(3))
-#     ]
-#
-#     return features_and_responses, features_and_responses_columns, blotter, \
-#            blotter_columns, calendar_ledger, calendar_ledger_columns, \
-#            trade_ledger, trade_ledger_columns
-#
-#
-# @app.callback(
-#     [
-#         dash.dependencies.Output('alpha-beta', 'figure'),
-#         dash.dependencies.Output('strategy-alpha', 'children'),
-#         dash.dependencies.Output('strategy-beta', 'children'),
-#         dash.dependencies.Output('strategy-gmrr', 'children'),
-#         dash.dependencies.Output('strategy-trades-per-yr', 'children'),
-#         dash.dependencies.Output('strategy-vol', 'children'),
-#         dash.dependencies.Output('strategy-sharpe', 'children')
-#     ],
-#     dash.dependencies.Input('trade-ledger', 'data'),
-#     prevent_initial_call=True
-# )
-# def update_performance_metrics(trade_ledger):
-#     trade_ledger = pd.DataFrame(trade_ledger)
-#     trade_ledger = trade_ledger[1:]
-#
-#     X = trade_ledger['benchmark_rtn_per_trading_day'].values.reshape(-1, 1)
-#
-#     linreg_model = linear_model.LinearRegression()
-#     linreg_model.fit(X, trade_ledger['trade_rtn_per_trading_day'])
-#
-#     x_range = np.linspace(X.min(), X.max(), 100)
-#     y_range = linreg_model.predict(x_range.reshape(-1, 1))
-#
-#     fig = px.scatter(
-#         trade_ledger,
-#         title="Performance against Benchmark",
-#         x='benchmark_rtn_per_trading_day',
-#         y='trade_rtn_per_trading_day'
-#     )
-#
-#     fig.add_traces(go.Scatter(x=x_range, y=y_range, name='OLS Fit'))
-#
-#     alpha = str(round(linreg_model.intercept_ * 100, 3)) + "% / trade"
-#     beta = round(linreg_model.coef_[0], 3)
-#
-#     gmrr = (trade_ledger['trade_rtn_per_trading_day'] + 1).product() ** (
-#             1 / len(
-#         trade_ledger)) - 1
-#
-#     avg_trades_per_yr = round(
-#         trade_ledger['open_dt'].groupby(
-#             pd.DatetimeIndex(trade_ledger['open_dt']).year
-#         ).agg('count').mean(),
-#         0
-#     )
-#
-#     vol = stdev(trade_ledger['trade_rtn_per_trading_day'])
-#
-#     sharpe = round(gmrr / vol, 3)
-#
-#     gmrr_str = str(round(gmrr, 3)) + "% / trade"
-#
-#     vol_str = str(round(vol, 3)) + "% / trade"
-#
-#     return fig, alpha, beta, gmrr_str, avg_trades_per_yr, vol_str, sharpe
-
 
 # Run it!
 if __name__ == '__main__':
